@@ -1,0 +1,58 @@
+# importing necessary libraries
+import cv2
+import cvlib as cv
+import time
+import os
+import numpy as np
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+# functionality to send mail
+def sendemail(p_img):
+    # enter the sender and reciever of the mail & password of the account of the sender
+    sender_email = 'sender mail'
+    receiver_email = 'receiver mail'
+    password = 'password'
+    subject = "Subject: Person Detection"
+    message = "Person Detected in Image"
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = receiver_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(message, 'plain'))
+    with open(p_img, 'rb') as fp:
+        image = MIMEImage(fp.read())
+        image.add_header('Content-Type', 'image/jpeg', name='Detected_img')
+        msg.attach(image)
+    # since here we use office365.com we used it as our example but if you need any other use 'smtp.(mail-service-domain)' eg: 'smtp.gmail.com'
+    with smtplib.SMTP('smtp.office365.com', 587) as server:
+        server.starttls()
+        server.login(sender_email, password)
+        text = msg.as_string()
+        server.sendmail(sender_email, receiver_email, text)
+#Starting video detection
+webcam = cv2.VideoCapture(0)
+cv2.namedWindow("Detection Window",cv2.WINDOW_AUTOSIZE)
+while(True):
+    img_found, img = webcam.read()
+    # if the image is read we continue with the rest
+    if img_found == True:
+        bbox, label, conf = cv.detect_common_objects(img,confidence=0.25, model='yolov4-tiny')
+        detimg = draw_bbox(img, bbox, label, conf)
+        cv2.imshow('detection',detimg)
+        # checking if predicted output has 'person' in it
+        if 'person' in str(label):
+            # destroying old predictions img
+            if os.path.exists('predictions.jpg'):
+                os.remove('predictions.jpg')
+            # new prediction image
+            cv2.imwrite('predictions.jpg',detimg)
+            sendemail('predictions.jpg')
+            time.sleep(1)
+        # break of the loop if pressing key 'q'
+        key=cv2.waitKey(5)
+        if key == ord('q'):
+            break
+webcam.release()
+cv2.destroyAllWindows()
